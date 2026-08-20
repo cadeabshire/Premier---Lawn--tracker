@@ -50,7 +50,7 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <div class="actions"><button class="primary" type="submit">Save Yard</button><button id="deleteBtn" class="danger" type="button" onclick="removeYard()">Delete</button></div>
 </form></div></div>
 
-<!-- Log past cut form -->
+<!-- Log Past Cut form -->
 <div id="cutModal" class="modal"><div class="sheet">
 <div class="row"><h2>Log Past Cut</h2><button class="light" onclick="closeCutForm()">Close</button></div>
 <form id="cutForm">
@@ -72,75 +72,75 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 const KEY="premier_lawn_tracker_v1";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"yards":[],"cuts":[]}'),editing=null;
 
-// Migrate old cuts
-db.cuts.forEach(c=>{ if(c.paid===undefined) c.paid=true; });
+// Fix any yards with bad frequency
+db.yards.forEach(y => { if (!y.freq || y.freq < 1) y.freq = 13; });
+db.cuts.forEach(c => { if (c.paid === undefined) c.paid = true; });
 
-const $=id=>document.getElementById(id);
+const $ = id => document.getElementById(id);
 
-// Fixed local date (avoids timezone bugs)
-function today(){
-  const d=new Date();
-  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function today() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
 }
-const money=n=>"$"+Number(n||0).toFixed(2);
-const nice=s=>s?new Date(s+"T12:00:00").toLocaleDateString():"—";
-function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+const money = n => "$" + Number(n||0).toFixed(2);
+const nice = s => s ? new Date(s+"T12:00:00").toLocaleDateString() : "—";
+function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
 
-function next(y){
-  if(!y.last) return null;
-  let d=new Date(y.last+"T12:00:00");
-  d.setDate(d.getDate()+Number(y.freq||13));
+function next(y) {
+  if (!y.last) return null;
+  const days = Number(y.freq) || 13;
+  let d = new Date(y.last + "T12:00:00");
+  d.setDate(d.getDate() + days);
   return d;
 }
 
-// Fixed due check – compares dates only (no time-of-day issues)
-function due(y){
-  let n=next(y);
-  if(!n) return false;
-  const todayDate=new Date();
+function due(y) {
+  let n = next(y);
+  if (!n) return false;
+  const todayDate = new Date();
   todayDate.setHours(0,0,0,0);
   n.setHours(0,0,0,0);
   return n.getTime() <= todayDate.getTime();
 }
 
-function monthCuts(){
-  let d=new Date();
-  return db.cuts.filter(x=>{
-    let z=new Date(x.date+"T12:00:00");
-    return z.getMonth()==d.getMonth()&&z.getFullYear()==d.getFullYear();
+function monthCuts() {
+  let d = new Date();
+  return db.cuts.filter(x => {
+    let z = new Date(x.date + "T12:00:00");
+    return z.getMonth() == d.getMonth() && z.getFullYear() == d.getFullYear();
   });
 }
-function yearCuts(){
-  let y=new Date().getFullYear();
-  return db.cuts.filter(x=>new Date(x.date+"T12:00:00").getFullYear()==y);
+function yearCuts() {
+  let y = new Date().getFullYear();
+  return db.cuts.filter(x => new Date(x.date + "T12:00:00").getFullYear() == y);
 }
 
-function nav(id){
-  ["homeBtn","yardsBtn","moneyBtn"].forEach(x=>$(x).classList.remove("active"));
-  if(id) $(id).classList.add("active");
+function nav(id) {
+  ["homeBtn","yardsBtn","moneyBtn"].forEach(x => $(x).classList.remove("active"));
+  if (id) $(id).classList.add("active");
 }
 
-function freqLabel(f){
-  if(f==6) return "Weekly";
-  if(f==13) return "Biweekly";
+function freqLabel(f) {
+  if (f == 6) return "Weekly";
+  if (f == 13) return "Biweekly";
   return "Every 4 weeks";
 }
 
-function card(y){
-  let n=next(y);
+function card(y) {
+  let n = next(y);
   return `<div class="card">
     <div class="row">
       <div>
         <div class="name">${y.name}</div>
-        <div class="muted">${y.address||"No address"} • ${money(y.price)}</div>
-        <div class="muted">${n?"Next: "+nice(n.toISOString().slice(0,10)):"No last cut recorded"}</div>
+        <div class="muted">${y.address || "No address"} • ${money(y.price)}</div>
+        <div class="muted">${n ? "Next: " + nice(n.toISOString().slice(0,10)) : "No last cut recorded"}</div>
       </div>
       <button class="primary" onclick="cutYard('${y.id}')">✓ Cut</button>
     </div>
   </div>`;
 }
 
-function cutRow(c){
+function cutRow(c) {
   const isPaid = c.paid !== false;
   return `<div class="card">
     <div class="row">
@@ -164,16 +164,16 @@ function cutRow(c){
   </div>`;
 }
 
-function home(){
+function home() {
   nav("homeBtn");
-  let mc=monthCuts();
-  let paidMonth = mc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0);
-  let yc=yearCuts();
-  let paidYear = yc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0);
-  let unpaid = db.cuts.filter(c=>c.paid===false);
-  let d=db.yards.filter(due);
+  let mc = monthCuts();
+  let paidMonth = mc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
+  let yc = yearCuts();
+  let paidYear = yc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
+  let unpaid = db.cuts.filter(c => c.paid === false);
+  let d = db.yards.filter(due);
 
-  $("app").innerHTML=`
+  $("app").innerHTML = `
     <div class="grid">
       <div class="card"><div class="label">ACTIVE YARDS</div><div class="big">${db.yards.length}</div></div>
       <div class="card"><div class="label">DUE NOW</div><div class="big">${d.length}</div></div>
@@ -187,65 +187,65 @@ function home(){
 
     ${unpaid.length ? `
       <div class="row"><h2>Unpaid Cuts (${unpaid.length})</h2></div>
-      ${unpaid.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(cutRow).join("")}
+      ${unpaid.slice().sort((a,b) => b.date.localeCompare(a.date)).map(cutRow).join("")}
     ` : ""}
 
     <div class="row"><h2>Due Yards</h2><button class="primary" onclick="openForm()">+ Yard</button></div>
     ${d.length ? d.map(card).join("") : '<div class="card empty">Nothing due right now. 🌱</div>'}
 
     <h2>Recent Cuts</h2>
-    ${db.cuts.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).map(cutRow).join("")
+    ${db.cuts.slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,8).map(cutRow).join("")
       || '<div class="card empty">No cuts recorded yet.</div>'}
   `;
 }
 
-function yards(){
+function yards() {
   nav("yardsBtn");
-  $("app").innerHTML=`<input id="q" placeholder="Search yards..." oninput="renderYards()"><div id="list"></div>`;
+  $("app").innerHTML = `<input id="q" placeholder="Search yards..." oninput="renderYards()"><div id="list"></div>`;
   renderYards();
 }
 
-function renderYards(){
-  let q=($("q").value||"").toLowerCase();
-  let a=db.yards.filter(y=>(y.name+" "+(y.address||"")).toLowerCase().includes(q));
+function renderYards() {
+  let q = ($("q").value || "").toLowerCase();
+  let a = db.yards.filter(y => (y.name + " " + (y.address || "")).toLowerCase().includes(q));
   $("list").innerHTML = a.length
-    ? a.map(y=>`
+    ? a.map(y => `
         <div class="card" onclick="openForm('${y.id}')">
           <div class="row">
             <div>
               <div class="name">${y.name}</div>
-              <div class="muted">${y.address||"No address"}</div>
+              <div class="muted">${y.address || "No address"}</div>
               <div class="muted">${freqLabel(y.freq)} • ${money(y.price)}</div>
             </div>
-            <span class="badge \( {due(y)?'due':''}"> \){due(y)?"DUE":"UPCOMING"}</span>
+            <span class="badge \( {due(y) ? 'due' : ''}"> \){due(y) ? "DUE" : "UPCOMING"}</span>
           </div>
         </div>`).join("")
     : '<div class="card empty">No yards yet.</div>';
 }
 
-function moneyPage(){
+function moneyPage() {
   nav("moneyBtn");
-  let mc=monthCuts();
-  let paidMonth = mc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0);
-  let yc=yearCuts();
-  let paidYear = yc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0);
-  let unpaidTotal = db.cuts.filter(c=>c.paid===false).reduce((a,x)=>a+Number(x.price),0);
+  let mc = monthCuts();
+  let paidMonth = mc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
+  let yc = yearCuts();
+  let paidYear = yc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
+  let unpaidTotal = db.cuts.filter(c => c.paid === false).reduce((a,x) => a + Number(x.price), 0);
 
-  $("app").innerHTML=`
+  $("app").innerHTML = `
     <div class="grid">
       <div class="card">
         <div class="label">THIS MONTH (PAID)</div>
         <div class="big">${money(paidMonth)}</div>
-        <div class="muted">${mc.filter(c=>c.paid!==false).length} paid cuts</div>
+        <div class="muted">${mc.filter(c => c.paid !== false).length} paid cuts</div>
       </div>
       <div class="card">
         <div class="label">YEAR TO DATE (PAID)</div>
         <div class="big">${money(paidYear)}</div>
-        <div class="muted">${yc.filter(c=>c.paid!==false).length} paid cuts</div>
+        <div class="muted">${yc.filter(c => c.paid !== false).length} paid cuts</div>
       </div>
     </div>
 
-    ${unpaidTotal>0 ? `
+    ${unpaidTotal > 0 ? `
       <div class="card" style="border:1px solid #fca5a5;margin-top:10px">
         <div class="label">OUTSTANDING (UNPAID)</div>
         <div class="big" style="color:#991b1b">${money(unpaidTotal)}</div>
@@ -257,14 +257,16 @@ function moneyPage(){
       <button class="primary" onclick="openCutForm()">＋ Log Past Cut</button>
     </div>
 
-    ${db.cuts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(cutRow).join("")
+    ${db.cuts.slice().sort((a,b) => b.date.localeCompare(a.date)).map(cutRow).join("")
       || '<div class="card empty">No cuts recorded yet.</div>'}
   `;
 }
 
-function cutYard(id){
-  let y=db.yards.find(x=>x.id===id);
-  if(!y) return;
+function cutYard(id) {
+  let y = db.yards.find(x => x.id === id);
+  if (!y) return;
+  if (!y.freq || y.freq < 1) y.freq = 13;
+
   db.cuts.push({
     id: crypto.randomUUID(),
     yardId: y.id,
@@ -273,101 +275,117 @@ function cutYard(id){
     price: Number(y.price),
     paid: false
   });
-  y.last = today();          // this is what makes it no longer due
+  y.last = today();
   save();
   home();
 }
 
-function togglePaid(cutId){
-  let c = db.cuts.find(x=>x.id===cutId);
-  if(c){
+function togglePaid(cutId) {
+  let c = db.cuts.find(x => x.id === cutId);
+  if (c) {
     c.paid = !c.paid;
     save();
-    if($("moneyBtn").classList.contains("active")) moneyPage();
+    if ($("moneyBtn").classList.contains("active")) moneyPage();
     else home();
   }
 }
 
-function deleteCut(cutId){
-  if(confirm("Delete this cut record?")){
-    db.cuts = db.cuts.filter(x=>x.id!==cutId);
+function deleteCut(cutId) {
+  if (confirm("Delete this cut record?")) {
+    db.cuts = db.cuts.filter(x => x.id !== cutId);
     save();
-    if($("moneyBtn").classList.contains("active")) moneyPage();
+    if ($("moneyBtn").classList.contains("active")) moneyPage();
     else home();
   }
 }
 
-function openForm(id=null){
-  editing=id;
+function openForm(id = null) {
+  editing = id;
   $("yardForm").reset();
-  $("formTitle").textContent=id?"Edit Yard":"Add Yard";
-  $("deleteBtn").style.display=id?"block":"none";
-  if(id){
-    let y=db.yards.find(x=>x.id===id);
-    $("fName").value=y.name;
-    $("fAddress").value=y.address||"";
-    $("fPhone").value=y.phone||"";
-    $("fPrice").value=y.price;
-    $("fFreq").value=y.freq;
-    $("fLast").value=y.last||"";
-    $("fNotes").value=y.notes||"";
+  $("formTitle").textContent = id ? "Edit Yard" : "Add Yard";
+  $("deleteBtn").style.display = id ? "block" : "none";
+  if (id) {
+    let y = db.yards.find(x => x.id === id);
+    $("fName").value = y.name;
+    $("fAddress").value = y.address || "";
+    $("fPhone").value = y.phone || "";
+    $("fPrice").value = y.price;
+    $("fFreq").value = y.freq || 13;
+    $("fLast").value = y.last || "";
+    $("fNotes").value = y.notes || "";
   }
-  $("modal").style.display="flex";
+  $("modal").style.display = "flex";
 }
 
-function closeForm(){$("modal").style.display="none"}
+function closeForm() { $("modal").style.display = "none"; }
 
-$("yardForm").onsubmit=e=>{
+$("yardForm").onsubmit = e => {
   e.preventDefault();
-  let y={
-    id: editing||crypto.randomUUID(),
+  let freq = Number($("fFreq").value) || 13;
+  let y = {
+    id: editing || crypto.randomUUID(),
     name: $("fName").value,
     address: $("fAddress").value,
     phone: $("fPhone").value,
     price: Number($("fPrice").value),
-    freq: Number($("fFreq").value),
+    freq: freq,
     last: $("fLast").value,
     notes: $("fNotes").value
   };
-  if(editing) db.yards=db.yards.map(x=>x.id===editing?y:x);
+  if (editing) db.yards = db.yards.map(x => x.id === editing ? y : x);
   else db.yards.push(y);
   save();
   closeForm();
   yards();
 };
 
-function removeYard(){
-  if(editing && confirm("Delete this yard?")){
-    db.yards=db.yards.filter(x=>x.id!==editing);
+function removeYard() {
+  if (editing && confirm("Delete this yard?")) {
+    db.yards = db.yards.filter(x => x.id !== editing);
     save();
     closeForm();
     yards();
   }
 }
 
-function openCutForm(){
-  let sel = $("cYard");
-  sel.innerHTML = db.yards.length
-    ? db.yards.map(y=>`<option value="\( {y.id}" data-price=" \){y.price}">\( {y.name} ( \){money(y.price)})</option>`).join("")
-    : `<option value="">No yards yet – add a yard first</option>`;
+// ---- FIXED Log Past Cut ----
+function openCutForm() {
+  const sel = $("cYard");
+  sel.innerHTML = "";   // clear first
+
+  if (db.yards.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No yards yet – add a yard first";
+    sel.appendChild(opt);
+  } else {
+    db.yards.forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = y.id;
+      opt.dataset.price = y.price;
+      opt.textContent = y.name + " (" + money(y.price) + ")";
+      sel.appendChild(opt);
+    });
+  }
+
   $("cDate").value = today();
   $("cPrice").value = db.yards[0] ? db.yards[0].price : "";
   $("cPaid").value = "true";
-  $("cutModal").style.display="flex";
+  $("cutModal").style.display = "flex";
 
-  sel.onchange = ()=>{
-    let opt = sel.options[sel.selectedIndex];
-    if(opt) $("cPrice").value = opt.dataset.price || "";
+  sel.onchange = function() {
+    const opt = this.options[this.selectedIndex];
+    if (opt && opt.dataset.price) $("cPrice").value = opt.dataset.price;
   };
 }
 
-function closeCutForm(){$("cutModal").style.display="none"}
+function closeCutForm() { $("cutModal").style.display = "none"; }
 
-$("cutForm").onsubmit=e=>{
+$("cutForm").onsubmit = e => {
   e.preventDefault();
-  let yardId = $("cYard").value;
-  let y = db.yards.find(x=>x.id===yardId);
-  if(!y){ alert("Please select a yard"); return; }
+  const yardId = $("cYard").value;
+  const y = db.yards.find(x => x.id === yardId);
+  if (!y) { alert("Please select a yard"); return; }
 
   db.cuts.push({
     id: crypto.randomUUID(),
@@ -378,14 +396,13 @@ $("cutForm").onsubmit=e=>{
     paid: $("cPaid").value === "true"
   });
 
-  // Update last cut if this date is newer
-  if(!y.last || $("cDate").value > y.last){
+  if (!y.last || $("cDate").value > y.last) {
     y.last = $("cDate").value;
   }
 
   save();
   closeCutForm();
-  if($("moneyBtn").classList.contains("active")) moneyPage();
+  if ($("moneyBtn").classList.contains("active")) moneyPage();
   else home();
 };
 

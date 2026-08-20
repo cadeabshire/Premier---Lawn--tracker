@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#176b38">
+<title>Premier Lawn Tracker</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6f3;color:#172019}
+header{background:#176b38;color:white;padding:20px 16px;position:sticky;top:0;z-index:5}h1{margin:0;font-size:24px}.sub{font-size:13px;opacity:.85}
+main{max-width:720px;margin:auto;padding:15px 13px 90px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#fff;border-radius:14px;padding:15px;margin-top:10px;box-shadow:0 2px 8px #0001}.label{font-size:11px;color:#68736b}.big{font-size:24px;font-weight:bold;margin-top:5px}
+button{border:0;border-radius:11px;padding:11px 14px;font-weight:bold}.primary{background:#176b38;color:white}.light{background:#e8f0ea;color:#176b38}.danger{background:#ffe7e7;color:#a21e1e}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-weight:bold}.muted{font-size:12px;color:#68736b;margin-top:4px}.badge{font-size:10px;padding:5px 8px;border-radius:20px;background:#e8f5eb;color:#176b38;font-weight:bold}
+h2{font-size:18px;margin:18px 0 8px}nav{position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #ddd;display:flex;justify-content:space-around;padding:7px;z-index:8}nav button{background:none;color:#68736b;font-size:11px}nav button.active{color:#176b38}
+input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px;margin-top:5px;font-size:15px}label{display:block;margin-top:10px;font-size:12px;font-weight:bold;color:#59635b}
+.modal{display:none;position:fixed;inset:0;background:#0008;z-index:10;align-items:flex-end}.sheet{background:#f3f6f3;border-radius:20px 20px 0 0;width:100%;max-height:94vh;overflow:auto;padding:18px}.actions{display:flex;gap:8px;margin-top:15px}.actions button{flex:1}.empty{text-align:center;color:#68736b;padding:25px}
+</style>
+</head>
+<body>
+<header><h1>🌱 Premier Lawn</h1><div class="sub">Yard & revenue tracker</div></header>
+<main id="app"></main>
+<nav>
+<button id="homeBtn" class="active" onclick="home()">🏠<br>Home</button>
+<button id="yardsBtn" onclick="yards()">🌱<br>Yards</button>
+<button id="moneyBtn" onclick="moneyPage()">💰<br>Money</button>
+<button onclick="openForm()">＋<br>Add Yard</button>
+</nav>
+<div id="modal" class="modal"><div class="sheet">
+<div class="row"><h2 id="formTitle">Add Yard</h2><button class="light" onclick="closeForm()">Close</button></div>
+<form id="yardForm">
+<label>Customer name<input id="fName" required></label>
+<label>Address<input id="fAddress"></label>
+<label>Phone<input id="fPhone" type="tel"></label>
+<label>Price per cut ($)<input id="fPrice" type="number" step="0.01" required></label>
+<label>Schedule<select id="fFreq"><option value="7">Weekly</option><option value="14" selected>Biweekly</option><option value="28">Every 4 weeks</option></select></label>
+<label>Last cut date<input id="fLast" type="date"></label>
+<label>Notes<input id="fNotes" placeholder="Gate, pets, special instructions..."></label>
+<div class="actions"><button class="primary" type="submit">Save Yard</button><button id="deleteBtn" class="danger" type="button" onclick="removeYard()">Delete</button></div>
+</form></div></div>
+<script>
+const KEY="premier_lawn_tracker_v1";let db=JSON.parse(localStorage.getItem(KEY)||'{"yards":[],"cuts":[]}'),editing=null;
+const $=id=>document.getElementById(id);const today=()=>new Date().toISOString().slice(0,10);
+const money=n=>"$"+Number(n||0).toFixed(2);const nice=s=>s?new Date(s+"T12:00:00").toLocaleDateString():"—";
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function next(y){if(!y.last)return null;let d=new Date(y.last+"T12:00:00");d.setDate(d.getDate()+Number(y.freq));return d}
+function due(y){let n=next(y);return n&&n<=new Date()}
+function monthCuts(){let d=new Date();return db.cuts.filter(x=>{let z=new Date(x.date+"T12:00:00");return z.getMonth()==d.getMonth()&&z.getFullYear()==d.getFullYear()})}
+function nav(id){["homeBtn","yardsBtn","moneyBtn"].forEach(x=>$(x).classList.remove("active"));if(id)$(id).classList.add("active")}
+function card(y){let n=next(y);return `<div class="card"><div class="row"><div><div class="name">${y.name}</div><div class="muted">${y.address||"No address"} • ${money(y.price)}</div><div class="muted">${n?"Next: "+nice(n.toISOString().slice(0,10)):"No last cut recorded"}</div></div><button class="primary" onclick="cutYard('${y.id}')">✓ Cut</button></div></div>`}
+function home(){nav("homeBtn");let mc=monthCuts(),rev=mc.reduce((a,x)=>a+Number(x.price),0),d=db.yards.filter(due);$("app").innerHTML=`<div class="grid"><div class="card"><div class="label">ACTIVE YARDS</div><div class="big">${db.yards.length}</div></div><div class="card"><div class="label">DUE NOW</div><div class="big">${d.length}</div></div><div class="card"><div class="label">THIS MONTH</div><div class="big">${money(rev)}</div></div><div class="card"><div class="label">CUTS THIS MONTH</div><div class="big">${mc.length}</div></div></div><div class="row"><h2>Due Yards</h2><button class="primary" onclick="openForm()">+ Yard</button></div>${d.length?d.map(card).join(""):'<div class="card empty">Nothing due right now. 🌱</div>'}<h2>Recent Cuts</h2>${db.cuts.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6).map(c=>`<div class="card"><div class="row"><div><div class="name">${c.customer}</div><div class="muted">${nice(c.date)}</div></div><strong>${money(c.price)}</strong></div></div>`).join("")||'<div class="card empty">No cuts recorded yet.</div>'}`}
+function yards(){nav("yardsBtn");$("app").innerHTML=`<input id="q" placeholder="Search yards..." oninput="renderYards()"><div id="list"></div>`;renderYards()}
+function renderYards(){let q=($("q").value||"").toLowerCase(),a=db.yards.filter(y=>(y.name+" "+y.address).toLowerCase().includes(q));$("list").innerHTML=a.length?a.map(y=>`<div class="card" onclick="openForm('${y.id}')"><div class="row"><div><div class="name">${y.name}</div><div class="muted">${y.address||"No address"}</div><div class="muted">${y.freq==7?"Weekly":y.freq==14?"Biweekly":"Every 4 weeks"} • ${money(y.price)}</div></div><span class="badge">${due(y)?"DUE":"UPCOMING"}</span></div></div>`).join(""):'<div class="card empty">No yards yet.</div>'}
+function moneyPage(){nav("moneyBtn");let mc=monthCuts(),rev=mc.reduce((a,x)=>a+Number(x.price),0);$("app").innerHTML=`<div class="card"><div class="label">CURRENT MONTH REVENUE</div><div class="big">${money(rev)}</div><div class="muted">${mc.length} cuts recorded</div></div><h2>Cut History</h2>${db.cuts.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(c=>`<div class="card"><div class="row"><div><div class="name">${c.customer}</div><div class="muted">${nice(c.date)}</div></div><strong>${money(c.price)}</strong></div></div>`).join("")||'<div class="card empty">No cuts recorded yet.</div>'}`}
+function cutYard(id){let y=db.yards.find(x=>x.id===id);if(!y)return;db.cuts.push({id:crypto.randomUUID(),yardId:y.id,customer:y.name,date:today(),price:Number(y.price)});y.last=today();save();home()}
+function openForm(id=null){editing=id;$("yardForm").reset();$("formTitle").textContent=id?"Edit Yard":"Add Yard";$("deleteBtn").style.display=id?"block":"none";if(id){let y=db.yards.find(x=>x.id===id);$("fName").value=y.name;$("fAddress").value=y.address||"";$("fPhone").value=y.phone||"";$("fPrice").value=y.price;$("fFreq").value=y.freq;$("fLast").value=y.last||"";$("fNotes").value=y.notes||""}$("modal").style.display="flex"}
+function closeForm(){$("modal").style.display="none"}
+$("yardForm").onsubmit=e=>{e.preventDefault();let y={id:editing||crypto.randomUUID(),name:$("fName").value,address:$("fAddress").value,phone:$("fPhone").value,price:Number($("fPrice").value),freq:Number($("fFreq").value),last:$("fLast").value,notes:$("fNotes").value};if(editing)db.yards=db.yards.map(x=>x.id===editing?y:x);else db.yards.push(y);save();closeForm();yards()}
+function removeYard(){if(editing&&confirm("Delete this yard?")){db.yards=db.yards.filter(x=>x.id!==editing);save();closeForm();yards()}}
+home();
+</script>
+</body>
+</html>

@@ -30,7 +30,6 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <button onclick="openForm()">＋<br>Add Yard</button>
 </nav>
 
-<!-- Yard form -->
 <div id="modal" class="modal"><div class="sheet">
 <div class="row"><h2 id="formTitle">Add Yard</h2><button class="light" onclick="closeForm()">Close</button></div>
 <form id="yardForm">
@@ -50,7 +49,6 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <div class="actions"><button class="primary" type="submit">Save Yard</button><button id="deleteBtn" class="danger" type="button" onclick="removeYard()">Delete</button></div>
 </form></div></div>
 
-<!-- Log Past Cut form -->
 <div id="cutModal" class="modal"><div class="sheet">
 <div class="row"><h2>Log Past Cut</h2><button class="light" onclick="closeCutForm()">Close</button></div>
 <form id="cutForm">
@@ -72,7 +70,6 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 const KEY="premier_lawn_tracker_v1";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"yards":[],"cuts":[]}'),editing=null;
 
-// Fix any yards with bad frequency
 db.yards.forEach(y => { if (!y.freq || y.freq < 1) y.freq = 13; });
 db.cuts.forEach(c => { if (c.paid === undefined) c.paid = true; });
 
@@ -348,10 +345,9 @@ function removeYard() {
   }
 }
 
-// ---- FIXED Log Past Cut ----
 function openCutForm() {
   const sel = $("cYard");
-  sel.innerHTML = "";   // clear first
+  sel.innerHTML = "";
 
   if (db.yards.length === 0) {
     const opt = document.createElement("option");
@@ -359,7 +355,7 @@ function openCutForm() {
     opt.textContent = "No yards yet – add a yard first";
     sel.appendChild(opt);
   } else {
-    db.yards.forEach(y => {
+    db.yards.forEach(function(y) {
       const opt = document.createElement("option");
       opt.value = y.id;
       opt.dataset.price = y.price;
@@ -375,7 +371,9 @@ function openCutForm() {
 
   sel.onchange = function() {
     const opt = this.options[this.selectedIndex];
-    if (opt && opt.dataset.price) $("cPrice").value = opt.dataset.price;
+    if (opt && opt.dataset.price) {
+      $("cPrice").value = opt.dataset.price;
+    }
   };
 }
 
@@ -385,7 +383,10 @@ $("cutForm").onsubmit = e => {
   e.preventDefault();
   const yardId = $("cYard").value;
   const y = db.yards.find(x => x.id === yardId);
-  if (!y) { alert("Please select a yard"); return; }
+  if (!y) {
+    alert("Please select a yard");
+    return;
+  }
 
   db.cuts.push({
     id: crypto.randomUUID(),

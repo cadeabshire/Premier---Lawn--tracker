@@ -30,7 +30,7 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <button onclick="openForm()">＋<br>Add Yard</button>
 </nav>
 
-<!-- Yard form modal -->
+<!-- Yard form -->
 <div id="modal" class="modal"><div class="sheet">
 <div class="row"><h2 id="formTitle">Add Yard</h2><button class="light" onclick="closeForm()">Close</button></div>
 <form id="yardForm">
@@ -50,7 +50,7 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <div class="actions"><button class="primary" type="submit">Save Yard</button><button id="deleteBtn" class="danger" type="button" onclick="removeYard()">Delete</button></div>
 </form></div></div>
 
-<!-- Log past cut modal -->
+<!-- Log past cut form -->
 <div id="cutModal" class="modal"><div class="sheet">
 <div class="row"><h2>Log Past Cut</h2><button class="light" onclick="closeCutForm()">Close</button></div>
 <form id="cutForm">
@@ -76,7 +76,12 @@ let db=JSON.parse(localStorage.getItem(KEY)||'{"yards":[],"cuts":[]}'),editing=n
 db.cuts.forEach(c=>{ if(c.paid===undefined) c.paid=true; });
 
 const $=id=>document.getElementById(id);
-const today=()=>new Date().toISOString().slice(0,10);
+
+// Fixed local date (avoids timezone bugs)
+function today(){
+  const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
 const money=n=>"$"+Number(n||0).toFixed(2);
 const nice=s=>s?new Date(s+"T12:00:00").toLocaleDateString():"—";
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
@@ -84,10 +89,19 @@ function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function next(y){
   if(!y.last) return null;
   let d=new Date(y.last+"T12:00:00");
-  d.setDate(d.getDate()+Number(y.freq));
+  d.setDate(d.getDate()+Number(y.freq||13));
   return d;
 }
-function due(y){let n=next(y);return n&&n<=new Date()}
+
+// Fixed due check – compares dates only (no time-of-day issues)
+function due(y){
+  let n=next(y);
+  if(!n) return false;
+  const todayDate=new Date();
+  todayDate.setHours(0,0,0,0);
+  n.setHours(0,0,0,0);
+  return n.getTime() <= todayDate.getTime();
+}
 
 function monthCuts(){
   let d=new Date();
@@ -98,10 +112,7 @@ function monthCuts(){
 }
 function yearCuts(){
   let y=new Date().getFullYear();
-  return db.cuts.filter(x=>{
-    let z=new Date(x.date+"T12:00:00");
-    return z.getFullYear()==y;
-  });
+  return db.cuts.filter(x=>new Date(x.date+"T12:00:00").getFullYear()==y);
 }
 
 function nav(id){
@@ -262,7 +273,7 @@ function cutYard(id){
     price: Number(y.price),
     paid: false
   });
-  y.last = today();
+  y.last = today();          // this is what makes it no longer due
   save();
   home();
 }
@@ -334,19 +345,16 @@ function removeYard(){
   }
 }
 
-// --- Log past cut ---
 function openCutForm(){
-  // Fill yard dropdown
   let sel = $("cYard");
   sel.innerHTML = db.yards.length
-    ? db.yards.map(y=>`<option value="\( {y.id}" data-price=" \){y.price}" data-name="\( {y.name}"> \){y.name} (${money(y.price)})</option>`).join("")
+    ? db.yards.map(y=>`<option value="\( {y.id}" data-price=" \){y.price}">\( {y.name} ( \){money(y.price)})</option>`).join("")
     : `<option value="">No yards yet – add a yard first</option>`;
   $("cDate").value = today();
   $("cPrice").value = db.yards[0] ? db.yards[0].price : "";
   $("cPaid").value = "true";
   $("cutModal").style.display="flex";
 
-  // Auto-fill price when yard changes
   sel.onchange = ()=>{
     let opt = sel.options[sel.selectedIndex];
     if(opt) $("cPrice").value = opt.dataset.price || "";
@@ -370,7 +378,7 @@ $("cutForm").onsubmit=e=>{
     paid: $("cPaid").value === "true"
   });
 
-  // Optionally update last cut date if this is newer
+  // Update last cut if this date is newer
   if(!y.last || $("cDate").value > y.last){
     y.last = $("cDate").value;
   }

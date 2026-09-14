@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#176b38">
 <title>Premier Lawn Tracker</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f6f3;color:#172019}
 header{background:#176b38;color:white;padding:20px 16px;position:sticky;top:0;z-index:5}h1{margin:0;font-size:24px}.sub{font-size:13px;opacity:.85}
@@ -19,32 +18,18 @@ h2{font-size:18px;margin:18px 0 8px}nav{position:fixed;bottom:0;left:0;right:0;b
 input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px;margin-top:5px;font-size:15px}label{display:block;margin-top:10px;font-size:12px;font-weight:bold;color:#59635b}
 .modal{display:none;position:fixed;inset:0;background:#0008;z-index:10;align-items:flex-end}.sheet{background:#f3f6f3;border-radius:20px 20px 0 0;width:100%;max-height:94vh;overflow:auto;padding:18px}.actions{display:flex;gap:8px;margin-top:15px}.actions button{flex:1}.empty{text-align:center;color:#68736b;padding:25px}
 .btn-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px}
-.auth-box{max-width:400px;margin:40px auto;background:white;padding:24px;border-radius:16px;box-shadow:0 4px 20px #0001}
-.auth-box h2{margin-top:0}
-.error{color:#a21e1e;font-size:14px;margin-top:10px}
 </style>
 </head>
 <body>
-<header>
-  <div class="row">
-    <div>
-      <h1>🌱 Premier Lawn</h1>
-      <div class="sub">Yard & revenue tracker</div>
-    </div>
-    <button id="logoutBtn" class="light" style="display:none;padding:8px 12px;font-size:13px" onclick="logout()">Log out</button>
-  </div>
-</header>
-
+<header><h1>🌱 Premier Lawn</h1><div class="sub">Yard & revenue tracker</div></header>
 <main id="app"></main>
-
-<nav id="mainNav" style="display:none">
-  <button id="homeBtn" class="active" onclick="home()">🏠<br>Home</button>
-  <button id="yardsBtn" onclick="yards()">🌱<br>Yards</button>
-  <button id="moneyBtn" onclick="moneyPage()">💰<br>Money</button>
-  <button onclick="openForm()">＋<br>Add Yard</button>
+<nav>
+<button id="homeBtn" class="active" onclick="home()">🏠<br>Home</button>
+<button id="yardsBtn" onclick="yards()">🌱<br>Yards</button>
+<button id="moneyBtn" onclick="moneyPage()">💰<br>Money</button>
+<button onclick="openForm()">＋<br>Add Yard</button>
 </nav>
 
-<!-- Yard form -->
 <div id="modal" class="modal"><div class="sheet">
 <div class="row"><h2 id="formTitle">Add Yard</h2><button class="light" onclick="closeForm()">Close</button></div>
 <form id="yardForm">
@@ -64,7 +49,6 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 <div class="actions"><button class="primary" type="submit">Save Yard</button><button id="deleteBtn" class="danger" type="button" onclick="removeYard()">Delete</button></div>
 </form></div></div>
 
-<!-- Log Past Cut form -->
 <div id="cutModal" class="modal"><div class="sheet">
 <div class="row"><h2>Log Past Cut</h2><button class="light" onclick="closeCutForm()">Close</button></div>
 <form id="cutForm">
@@ -81,416 +65,38 @@ input,select{width:100%;padding:12px;border:1px solid #ccd5ce;border-radius:10px
 </form></div></div>
 
 <script>
-const SUPABASE_URL = "https://jvvvqhsognmynkwsumlt.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2dnZxaHNvZ25teW5rd3N1bWx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0MTcwNDAsImV4cCI6MjEwNDk5MzA0MH0.vVV_1T6EzitoIdUIHYViv6sGevVpaOxInXld9xmYmXk";
-
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let db = { yards: [], cuts: [] };
-let editing = null;
-let currentUser = null;
-
-const $ = id => document.getElementById(id);
-
-function today() {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-}
-const money = n => "$" + Number(n||0).toFixed(2);
-const nice = s => s ? new Date(s+"T12:00:00").toLocaleDateString() : "—";
-
-async function loadData() {
-  const { data: yards, error: yErr } = await supabase.from("yards").select("*").order("name");
-  const { data: cuts, error: cErr } = await supabase.from("cuts").select("*").order("date", { ascending: false });
-  if (yErr || cErr) {
-    console.error(yErr || cErr);
-    alert("Error loading data. Check the console.");
-    return;
-  }
-  db.yards = yards || [];
-  db.cuts = cuts || [];
-}
-
-function next(y) {
-  if (!y.last) return null;
-  const days = Number(y.freq) || 13;
-  let d = new Date(y.last + "T12:00:00");
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function due(y) {
-  let n = next(y);
-  if (!n) return false;
-  const todayDate = new Date();
-  todayDate.setHours(0,0,0,0);
-  n.setHours(0,0,0,0);
-  return n.getTime() <= todayDate.getTime();
-}
-
-function monthCuts() {
-  let d = new Date();
-  return db.cuts.filter(x => {
-    let z = new Date(x.date + "T12:00:00");
-    return z.getMonth() == d.getMonth() && z.getFullYear() == d.getFullYear();
-  });
-}
-function yearCuts() {
-  let y = new Date().getFullYear();
-  return db.cuts.filter(x => new Date(x.date + "T12:00:00").getFullYear() == y);
-}
-
-function nav(id) {
-  ["homeBtn","yardsBtn","moneyBtn"].forEach(x => $(x).classList.remove("active"));
-  if (id) $(id).classList.add("active");
-}
-
-function freqLabel(f) {
-  if (f == 6) return "Weekly";
-  if (f == 13) return "Biweekly";
-  return "Every 4 weeks";
-}
-
-function card(y) {
-  let n = next(y);
-  return `<div class="card">
-    <div class="row">
-      <div>
-        <div class="name">${y.name}</div>
-        <div class="muted">${y.address || "No address"} • ${money(y.price)}</div>
-        <div class="muted">${n ? "Next: " + nice(n.toISOString().slice(0,10)) : "No last cut recorded"}</div>
-      </div>
-      <button class="primary" onclick="cutYard('${y.id}')">✓ Cut</button>
-    </div>
-  </div>`;
-}
-
-function cutRow(c) {
-  const isPaid = c.paid !== false;
-  return `<div class="card">
-    <div class="row">
-      <div>
-        <div class="name">${c.customer}</div>
-        <div class="muted">${nice(c.date)}</div>
-      </div>
-      <div style="text-align:right">
-        <strong>${money(c.price)}</strong>
-        <div class="btn-row">
-          ${isPaid
-            ? `<span class="badge paid">✓ Paid</span>
-               <button class="light" style="padding:5px 8px;font-size:11px" onclick="togglePaid('${c.id}')">Mark Unpaid</button>`
-            : `<span class="badge unpaid">Unpaid</span>
-               <button class="paid-btn" style="padding:5px 8px;font-size:11px" onclick="togglePaid('${c.id}')">Mark Paid</button>`
-          }
-          <button class="danger" style="padding:5px 8px;font-size:11px" onclick="deleteCut('${c.id}')">✕</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function showAuth() {
-  $("mainNav").style.display = "none";
-  $("logoutBtn").style.display = "none";
-  $("app").innerHTML = `
-    <div class="auth-box">
-      <h2>Sign in</h2>
-      <label>Email<input id="authEmail" type="email" required></label>
-      <label>Password<input id="authPass" type="password" required></label>
-      <div class="actions" style="margin-top:20px">
-        <button class="primary" onclick="signIn()">Sign In</button>
-        <button class="light" onclick="signUp()">Create Account</button>
-      </div>
-      <div id="authError" class="error"></div>
-    </div>
-  `;
-}
-
-async function signIn() {
-  const email = $("authEmail").value;
-  const password = $("authPass").value;
-  $("authError").textContent = "";
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    $("authError").textContent = error.message;
-    return;
-  }
-  currentUser = data.user;
-  await startApp();
-}
-
-async function signUp() {
-  const email = $("authEmail").value;
-  const password = $("authPass").value;
-  $("authError").textContent = "";
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) {
-    $("authError").textContent = error.message;
-    return;
-  }
-  alert("Account created! Check your email for a confirmation link (if required), then sign in.");
-}
-
-async function logout() {
-  await supabase.auth.signOut();
-  currentUser = null;
-  showAuth();
-}
-
-async function startApp() {
-  $("mainNav").style.display = "flex";
-  $("logoutBtn").style.display = "block";
-  await loadData();
-  home();
-}
-
-function home() {
-  nav("homeBtn");
-  let mc = monthCuts();
-  let paidMonth = mc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
-  let yc = yearCuts();
-  let paidYear = yc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
-  let unpaid = db.cuts.filter(c => c.paid === false);
-  let d = db.yards.filter(due);
-
-  $("app").innerHTML = `
-    <div class="grid">
-      <div class="card"><div class="label">ACTIVE YARDS</div><div class="big">${db.yards.length}</div></div>
-      <div class="card"><div class="label">DUE NOW</div><div class="big">${d.length}</div></div>
-      <div class="card"><div class="label">THIS MONTH (PAID)</div><div class="big">${money(paidMonth)}</div></div>
-      <div class="card"><div class="label">YEAR TO DATE (PAID)</div><div class="big">${money(paidYear)}</div></div>
-    </div>
-
-    <div class="row" style="margin-top:12px">
-      <button class="light" onclick="openCutForm()">＋ Log Past Cut</button>
-    </div>
-
-    ${unpaid.length ? `
-      <div class="row"><h2>Unpaid Cuts (${unpaid.length})</h2></div>
-      ${unpaid.map(cutRow).join("")}
-    ` : ""}
-
-    <div class="row"><h2>Due Yards</h2><button class="primary" onclick="openForm()">+ Yard</button></div>
-    ${d.length ? d.map(card).join("") : '<div class="card empty">Nothing due right now. 🌱</div>'}
-
-    <h2>Recent Cuts</h2>
-    ${db.cuts.slice(0,8).map(cutRow).join("") || '<div class="card empty">No cuts recorded yet.</div>'}
-  `;
-}
-
-function yards() {
-  nav("yardsBtn");
-  $("app").innerHTML = `<input id="q" placeholder="Search yards..." oninput="renderYards()"><div id="list"></div>`;
-  renderYards();
-}
-
-function renderYards() {
-  let q = ($("q").value || "").toLowerCase();
-  let a = db.yards.filter(y => (y.name + " " + (y.address || "")).toLowerCase().includes(q));
-  $("list").innerHTML = a.length
-    ? a.map(y => `
-        <div class="card" onclick="openForm('${y.id}')">
-          <div class="row">
-            <div>
-              <div class="name">${y.name}</div>
-              <div class="muted">${y.address || "No address"}</div>
-              <div class="muted">${freqLabel(y.freq)} • ${money(y.price)}</div>
-            </div>
-            <span class="badge \( {due(y) ? 'due' : ''}"> \){due(y) ? "DUE" : "UPCOMING"}</span>
-          </div>
-        </div>`).join("")
-    : '<div class="card empty">No yards yet.</div>';
-}
-
-function moneyPage() {
-  nav("moneyBtn");
-  let mc = monthCuts();
-  let paidMonth = mc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
-  let yc = yearCuts();
-  let paidYear = yc.filter(c => c.paid !== false).reduce((a,x) => a + Number(x.price), 0);
-  let unpaidTotal = db.cuts.filter(c => c.paid === false).reduce((a,x) => a + Number(x.price), 0);
-
-  $("app").innerHTML = `
-    <div class="grid">
-      <div class="card">
-        <div class="label">THIS MONTH (PAID)</div>
-        <div class="big">${money(paidMonth)}</div>
-        <div class="muted">${mc.filter(c => c.paid !== false).length} paid cuts</div>
-      </div>
-      <div class="card">
-        <div class="label">YEAR TO DATE (PAID)</div>
-        <div class="big">${money(paidYear)}</div>
-        <div class="muted">${yc.filter(c => c.paid !== false).length} paid cuts</div>
-      </div>
-    </div>
-
-    ${unpaidTotal > 0 ? `
-      <div class="card" style="border:1px solid #fca5a5;margin-top:10px">
-        <div class="label">OUTSTANDING (UNPAID)</div>
-        <div class="big" style="color:#991b1b">${money(unpaidTotal)}</div>
-      </div>
-    ` : ""}
-
-    <div class="row" style="margin-top:14px">
-      <h2 style="margin:0">Cut History</h2>
-      <button class="primary" onclick="openCutForm()">＋ Log Past Cut</button>
-    </div>
-
-    ${db.cuts.map(cutRow).join("") || '<div class="card empty">No cuts recorded yet.</div>'}
-  `;
-}
-
-async function cutYard(id) {
-  let y = db.yards.find(x => x.id === id);
-  if (!y) return;
-
-  const { error } = await supabase.from("cuts").insert({
-    user_id: currentUser.id,
-    yard_id: y.id,
-    customer: y.name,
-    date: today(),
-    price: Number(y.price),
-    paid: false
-  });
-  if (error) { alert(error.message); return; }
-
-  await supabase.from("yards").update({ last: today() }).eq("id", y.id);
-  await loadData();
-  home();
-}
-
-async function togglePaid(cutId) {
-  let c = db.cuts.find(x => x.id === cutId);
-  if (!c) return;
-  await supabase.from("cuts").update({ paid: !c.paid }).eq("id", cutId);
-  await loadData();
-  if ($("moneyBtn").classList.contains("active")) moneyPage();
-  else home();
-}
-
-async function deleteCut(cutId) {
-  if (!confirm("Delete this cut record?")) return;
-  await supabase.from("cuts").delete().eq("id", cutId);
-  await loadData();
-  if ($("moneyBtn").classList.contains("active")) moneyPage();
-  else home();
-}
-
-function openForm(id = null) {
-  editing = id;
-  $("yardForm").reset();
-  $("formTitle").textContent = id ? "Edit Yard" : "Add Yard";
-  $("deleteBtn").style.display = id ? "block" : "none";
-  if (id) {
-    let y = db.yards.find(x => x.id === id);
-    $("fName").value = y.name;
-    $("fAddress").value = y.address || "";
-    $("fPhone").value = y.phone || "";
-    $("fPrice").value = y.price;
-    $("fFreq").value = y.freq || 13;
-    $("fLast").value = y.last || "";
-    $("fNotes").value = y.notes || "";
-  }
-  $("modal").style.display = "flex";
-}
-
-function closeForm() { $("modal").style.display = "none"; }
-
-$("yardForm").onsubmit = async e => {
-  e.preventDefault();
-  const payload = {
-    user_id: currentUser.id,
-    name: $("fName").value,
-    address: $("fAddress").value,
-    phone: $("fPhone").value,
-    price: Number($("fPrice").value),
-    freq: Number($("fFreq").value) || 13,
-    last: $("fLast").value || null,
-    notes: $("fNotes").value
-  };
-
-  if (editing) {
-    await supabase.from("yards").update(payload).eq("id", editing);
-  } else {
-    await supabase.from("yards").insert(payload);
-  }
-  closeForm();
-  await loadData();
-  yards();
-};
-
-async function removeYard() {
-  if (!editing || !confirm("Delete this yard?")) return;
-  await supabase.from("yards").delete().eq("id", editing);
-  closeForm();
-  await loadData();
-  yards();
-}
-
-function openCutForm() {
-  const sel = $("cYard");
-  sel.innerHTML = "";
-  if (db.yards.length === 0) {
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = "No yards yet – add a yard first";
-    sel.appendChild(opt);
-  } else {
-    db.yards.forEach(y => {
-      const opt = document.createElement("option");
-      opt.value = y.id;
-      opt.dataset.price = y.price;
-      opt.textContent = y.name + " (" + money(y.price) + ")";
-      sel.appendChild(opt);
-    });
-  }
-  $("cDate").value = today();
-  $("cPrice").value = db.yards[0] ? db.yards[0].price : "";
-  $("cPaid").value = "true";
-  $("cutModal").style.display = "flex";
-
-  sel.onchange = function() {
-    const opt = this.options[this.selectedIndex];
-    if (opt && opt.dataset.price) $("cPrice").value = opt.dataset.price;
-  };
-}
-
-function closeCutForm() { $("cutModal").style.display = "none"; }
-
-$("cutForm").onsubmit = async e => {
-  e.preventDefault();
-  const yardId = $("cYard").value;
-  const y = db.yards.find(x => x.id === yardId);
-  if (!y) { alert("Please select a yard"); return; }
-
-  await supabase.from("cuts").insert({
-    user_id: currentUser.id,
-    yard_id: y.id,
-    customer: y.name,
-    date: $("cDate").value,
-    price: Number($("cPrice").value),
-    paid: $("cPaid").value === "true"
-  });
-
-  if (!y.last || $("cDate").value > y.last) {
-    await supabase.from("yards").update({ last: $("cDate").value }).eq("id", y.id);
-  }
-
-  closeCutForm();
-  await loadData();
-  if ($("moneyBtn").classList.contains("active")) moneyPage();
-  else home();
-};
-
-// Start
-supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session) {
-    currentUser = session.user;
-    startApp();
-  } else {
-    showAuth();
-  }
-});
+const KEY="premier_lawn_tracker_v1";
+let db=JSON.parse(localStorage.getItem(KEY)||'{"yards":[],"cuts":[]}'),editing=null;
+db.yards.forEach(y=>{if(!y.freq||y.freq<1)y.freq=13;});
+db.cuts.forEach(c=>{if(c.paid===undefined)c.paid=true;});
+const $=id=>document.getElementById(id);
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+const money=n=>"$"+Number(n||0).toFixed(2);
+const nice=s=>s?new Date(s+"T12:00:00").toLocaleDateString():"—";
+function save(){localStorage.setItem(KEY,JSON.stringify(db));}
+function next(y){if(!y.last)return null;const days=Number(y.freq)||13;let d=new Date(y.last+"T12:00:00");d.setDate(d.getDate()+days);return d;}
+function due(y){let n=next(y);if(!n)return false;const t=new Date();t.setHours(0,0,0,0);n.setHours(0,0,0,0);return n.getTime()<=t.getTime();}
+function monthCuts(){let d=new Date();return db.cuts.filter(x=>{let z=new Date(x.date+"T12:00:00");return z.getMonth()==d.getMonth()&&z.getFullYear()==d.getFullYear();});}
+function yearCuts(){let y=new Date().getFullYear();return db.cuts.filter(x=>new Date(x.date+"T12:00:00").getFullYear()==y);}
+function nav(id){["homeBtn","yardsBtn","moneyBtn"].forEach(x=>\( (x).classList.remove("active"));if(id) \)(id).classList.add("active");}
+function freqLabel(f){if(f==6)return"Weekly";if(f==13)return"Biweekly";return"Every 4 weeks";}
+function card(y){let n=next(y);return`<div class="card"><div class="row"><div><div class="name">\( {y.name}</div><div class="muted"> \){y.address||"No address"} • \( {money(y.price)}</div><div class="muted"> \){n?"Next: "+nice(n.toISOString().slice(0,10)):"No last cut recorded"}</div></div><button class="primary" onclick="cutYard('${y.id}')">✓ Cut</button></div></div>`;}
+function cutRow(c){const isPaid=c.paid!==false;return`<div class="card"><div class="row"><div><div class="name">\( {c.customer}</div><div class="muted"> \){nice(c.date)}</div></div><div style="text-align:right"><strong>\( {money(c.price)}</strong><div class="btn-row"> \){isPaid?`<span class="badge paid">✓ Paid</span><button class="light" style="padding:5px 8px;font-size:11px" onclick="togglePaid('\( {c.id}')">Mark Unpaid</button>`:`<span class="badge unpaid">Unpaid</span><button class="paid-btn" style="padding:5px 8px;font-size:11px" onclick="togglePaid(' \){c.id}')">Mark Paid</button>`}<button class="danger" style="padding:5px 8px;font-size:11px" onclick="deleteCut('${c.id}')">✕</button></div></div></div></div>`;}
+function home(){nav("homeBtn");let mc=monthCuts(),paidMonth=mc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0),yc=yearCuts(),paidYear=yc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0),unpaid=db.cuts.filter(c=>c.paid===false),d=db.yards.filter(due);\( ("app").innerHTML=`<div class="grid"><div class="card"><div class="label">ACTIVE YARDS</div><div class="big"> \){db.yards.length}</div></div><div class="card"><div class="label">DUE NOW</div><div class="big">\( {d.length}</div></div><div class="card"><div class="label">THIS MONTH (PAID)</div><div class="big"> \){money(paidMonth)}</div></div><div class="card"><div class="label">YEAR TO DATE (PAID)</div><div class="big">\( {money(paidYear)}</div></div></div><div class="row" style="margin-top:12px"><button class="light" onclick="openCutForm()">＋ Log Past Cut</button></div> \){unpaid.length?`<div class="row"><h2>Unpaid Cuts (\( {unpaid.length})</h2></div> \){unpaid.map(cutRow).join("")}`:""}<div class="row"><h2>Due Yards</h2><button class="primary" onclick="openForm()">+ Yard</button></div>\( {d.length?d.map(card).join(""):'<div class="card empty">Nothing due right now. 🌱</div>'}<h2>Recent Cuts</h2> \){db.cuts.slice(0,8).map(cutRow).join("")||'<div class="card empty">No cuts recorded yet.</div>'}`;}
+function yards(){nav("yardsBtn");$("app").innerHTML=`<input id="q" placeholder="Search yards..." oninput="renderYards()"><div id="list"></div>`;renderYards();}
+function renderYards(){let q=(\( ("q").value||"").toLowerCase(),a=db.yards.filter(y=>(y.name+" "+(y.address||"")).toLowerCase().includes(q)); \)("list").innerHTML=a.length?a.map(y=>`<div class="card" onclick="openForm('\( {y.id}')"><div class="row"><div><div class="name"> \){y.name}</div><div class="muted">\( {y.address||"No address"}</div><div class="muted"> \){freqLabel(y.freq)} • ${money(y.price)}</div></div><span class="badge \( {due(y)?'due':''}"> \){due(y)?"DUE":"UPCOMING"}</span></div></div>`).join(""):'<div class="card empty">No yards yet.</div>';}
+function moneyPage(){nav("moneyBtn");let mc=monthCuts(),paidMonth=mc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0),yc=yearCuts(),paidYear=yc.filter(c=>c.paid!==false).reduce((a,x)=>a+Number(x.price),0),unpaidTotal=db.cuts.filter(c=>c.paid===false).reduce((a,x)=>a+Number(x.price),0);\( ("app").innerHTML=`<div class="grid"><div class="card"><div class="label">THIS MONTH (PAID)</div><div class="big"> \){money(paidMonth)}</div><div class="muted">\( {mc.filter(c=>c.paid!==false).length} paid cuts</div></div><div class="card"><div class="label">YEAR TO DATE (PAID)</div><div class="big"> \){money(paidYear)}</div><div class="muted">\( {yc.filter(c=>c.paid!==false).length} paid cuts</div></div></div> \){unpaidTotal>0?`<div class="card" style="border:1px solid #fca5a5;margin-top:10px"><div class="label">OUTSTANDING (UNPAID)</div><div class="big" style="color:#991b1b">\( {money(unpaidTotal)}</div></div>`:""}<div class="row" style="margin-top:14px"><h2 style="margin:0">Cut History</h2><button class="primary" onclick="openCutForm()">＋ Log Past Cut</button></div> \){db.cuts.map(cutRow).join("")||'<div class="card empty">No cuts recorded yet.</div>'}`;}
+function cutYard(id){let y=db.yards.find(x=>x.id===id);if(!y)return;if(!y.freq||y.freq<1)y.freq=13;db.cuts.push({id:crypto.randomUUID(),yardId:y.id,customer:y.name,date:today(),price:Number(y.price),paid:false});y.last=today();save();home();}
+function togglePaid(cutId){let c=db.cuts.find(x=>x.id===cutId);if(c){c.paid=!c.paid;save();if($("moneyBtn").classList.contains("active"))moneyPage();else home();}}
+function deleteCut(cutId){if(confirm("Delete this cut record?")){db.cuts=db.cuts.filter(x=>x.id!==cutId);save();if($("moneyBtn").classList.contains("active"))moneyPage();else home();}}
+function openForm(id=null){editing=id;\( ("yardForm").reset(); \)("formTitle").textContent=id?"Edit Yard":"Add Yard";\( ("deleteBtn").style.display=id?"block":"none";if(id){let y=db.yards.find(x=>x.id===id); \)("fName").value=y.name;\( ("fAddress").value=y.address||""; \)("fPhone").value=y.phone||"";\( ("fPrice").value=y.price; \)("fFreq").value=y.freq||13;\( ("fLast").value=y.last||""; \)("fNotes").value=y.notes||"";}$("modal").style.display="flex";}
+function closeForm(){$("modal").style.display="none";}
+\( ("yardForm").onsubmit=e=>{e.preventDefault();let freq=Number( \)("fFreq").value)||13;let y={id:editing||crypto.randomUUID(),name:\( ("fName").value,address: \)("fAddress").value,phone:\( ("fPhone").value,price:Number( \)("fPrice").value),freq:freq,last:\( ("fLast").value,notes: \)("fNotes").value};if(editing)db.yards=db.yards.map(x=>x.id===editing?y:x);else db.yards.push(y);save();closeForm();yards();};
+function removeYard(){if(editing&&confirm("Delete this yard?")){db.yards=db.yards.filter(x=>x.id!==editing);save();closeForm();yards();}}
+function openCutForm(){const sel=\( ("cYard");sel.innerHTML="";if(db.yards.length===0){const opt=document.createElement("option");opt.value="";opt.textContent="No yards yet – add a yard first";sel.appendChild(opt);}else{db.yards.forEach(y=>{const opt=document.createElement("option");opt.value=y.id;opt.dataset.price=y.price;opt.textContent=y.name+" ("+money(y.price)+")";sel.appendChild(opt);});} \)("cDate").value=today();\( ("cPrice").value=db.yards[0]?db.yards[0].price:""; \)("cPaid").value="true";\( ("cutModal").style.display="flex";sel.onchange=function(){const opt=this.options[this.selectedIndex];if(opt&&opt.dataset.price) \)("cPrice").value=opt.dataset.price;};}
+function closeCutForm(){$("cutModal").style.display="none";}
+\( ("cutForm").onsubmit=e=>{e.preventDefault();const yardId= \)("cYard").value;const y=db.yards.find(x=>x.id===yardId);if(!y){alert("Please select a yard");return;}db.cuts.push({id:crypto.randomUUID(),yardId:y.id,customer:y.name,date:\( ("cDate").value,price:Number( \)("cPrice").value),paid:\( ("cPaid").value==="true"});if(!y.last|| \)("cDate").value>y.last)y.last=\( ("cDate").value;save();closeCutForm();if( \)("moneyBtn").classList.contains("active"))moneyPage();else home();};
+home();
 </script>
 </body>
 </html>
